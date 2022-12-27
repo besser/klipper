@@ -20,8 +20,8 @@ SOURCE_FILES = [
     'pyhelper.c', 'serialqueue.c', 'stepcompress.c', 'itersolve.c', 'trapq.c',
     'pollreactor.c', 'msgblock.c', 'trdispatch.c',
     'kin_cartesian.c', 'kin_corexy.c', 'kin_corexz.c', 'kin_delta.c',
-    'kin_polar.c', 'kin_rotary_delta.c', 'kin_winch.c', 'kin_extruder.c',
-    'kin_shaper.c',
+    'kin_deltesian.c', 'kin_polar.c', 'kin_rotary_delta.c', 'kin_winch.c',
+    'kin_extruder.c', 'kin_shaper.c',
 ]
 DEST_LIB = "c_helper.so"
 OTHER_FILES = [
@@ -38,8 +38,9 @@ defs_stepcompress = """
 
     struct stepcompress *stepcompress_alloc(uint32_t oid);
     void stepcompress_fill(struct stepcompress *sc, uint32_t max_error
-        , uint32_t invert_sdir, int32_t queue_step_msgtag
-        , int32_t set_next_step_dir_msgtag);
+        , int32_t queue_step_msgtag, int32_t set_next_step_dir_msgtag);
+    void stepcompress_set_invert_sdir(struct stepcompress *sc
+        , uint32_t invert_sdir);
     void stepcompress_free(struct stepcompress *sc);
     int stepcompress_reset(struct stepcompress *sc, uint64_t last_step_clock);
     int stepcompress_set_last_position(struct stepcompress *sc
@@ -116,6 +117,11 @@ defs_kin_delta = """
         , double tower_x, double tower_y);
 """
 
+defs_kin_deltesian = """
+    struct stepper_kinematics *deltesian_stepper_alloc(double arm2
+        , double arm_x);
+"""
+
 defs_kin_polar = """
     struct stepper_kinematics *polar_stepper_alloc(char type);
 """
@@ -133,8 +139,8 @@ defs_kin_winch = """
 
 defs_kin_extruder = """
     struct stepper_kinematics *extruder_stepper_alloc(void);
-    void extruder_set_smooth_time(struct stepper_kinematics *sk
-        , double smooth_time);
+    void extruder_set_pressure_advance(struct stepper_kinematics *sk
+        , double pressure_advance, double smooth_time);
 """
 
 defs_kin_shaper = """
@@ -167,8 +173,8 @@ defs_serialqueue = """
         , uint64_t notify_id);
     void serialqueue_pull(struct serialqueue *sq
         , struct pull_queue_message *pqm);
-    void serialqueue_set_baud_adjust(struct serialqueue *sq
-        , double baud_adjust);
+    void serialqueue_set_wire_frequency(struct serialqueue *sq
+        , double frequency);
     void serialqueue_set_receive_window(struct serialqueue *sq
         , int receive_window);
     void serialqueue_set_clock_est(struct serialqueue *sq, double est_freq
@@ -204,8 +210,8 @@ defs_all = [
     defs_pyhelper, defs_serialqueue, defs_std, defs_stepcompress,
     defs_itersolve, defs_trapq, defs_trdispatch,
     defs_kin_cartesian, defs_kin_corexy, defs_kin_corexz, defs_kin_delta,
-    defs_kin_polar, defs_kin_rotary_delta, defs_kin_winch, defs_kin_extruder,
-    defs_kin_shaper,
+    defs_kin_deltesian, defs_kin_polar, defs_kin_rotary_delta, defs_kin_winch,
+    defs_kin_extruder, defs_kin_shaper,
 ]
 
 # Update filenames to an absolute path

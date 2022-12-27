@@ -224,6 +224,8 @@ class TMCCommandHelper:
         self.stepper_enable = self.printer.load_object(config, "stepper_enable")
         self.printer.register_event_handler("stepper:sync_mcu_position",
                                             self._handle_sync_mcu_pos)
+        self.printer.register_event_handler("stepper:set_sdir_inverted",
+                                            self._handle_sync_mcu_pos)
         self.printer.register_event_handler("klippy:mcu_identify",
                                             self._handle_mcu_identify)
         self.printer.register_event_handler("klippy:connect",
@@ -306,14 +308,14 @@ class TMCCommandHelper:
             if enable_line.is_motor_enabled():
                 raise
             return
-        if not stepper.is_dir_inverted():
+        if not stepper.get_dir_inverted()[0]:
             driver_phase = 1023 - driver_phase
         phases = self._get_phases()
         phase = int(float(driver_phase) / 1024 * phases + .5) % phases
         moff = (phase - stepper.get_mcu_position()) % phases
         if self.mcu_phase_offset is not None and self.mcu_phase_offset != moff:
             logging.warning("Stepper %s phase change (was %d now %d)",
-                            self.mcu_phase_offset, moff)
+                            self.stepper_name, self.mcu_phase_offset, moff)
         self.mcu_phase_offset = moff
     # Stepper enable/disable tracking
     def _do_enable(self, print_time):
@@ -499,10 +501,35 @@ class TMCVirtualPinHelper:
 # Config reading helpers
 ######################################################################
 
+# Helper to initialize the wave table from config or defaults
+def TMCWaveTableHelper(config, mcu_tmc):
+    set_config_field = mcu_tmc.get_fields().set_config_field
+    set_config_field(config, "mslut0", 0xAAAAB554)
+    set_config_field(config, "mslut1", 0x4A9554AA)
+    set_config_field(config, "mslut2", 0x24492929)
+    set_config_field(config, "mslut3", 0x10104222)
+    set_config_field(config, "mslut4", 0xFBFFFFFF)
+    set_config_field(config, "mslut5", 0xB5BB777D)
+    set_config_field(config, "mslut6", 0x49295556)
+    set_config_field(config, "mslut7", 0x00404222)
+    set_config_field(config, "w0", 2)
+    set_config_field(config, "w1", 1)
+    set_config_field(config, "w2", 1)
+    set_config_field(config, "w3", 1)
+    set_config_field(config, "x1", 128)
+    set_config_field(config, "x2", 255)
+    set_config_field(config, "x3", 255)
+    set_config_field(config, "start_sin", 0)
+    set_config_field(config, "start_sin90", 247)
+
 # Helper to configure and query the microstep settings
 def TMCMicrostepHelper(config, mcu_tmc):
     fields = mcu_tmc.get_fields()
     stepper_name = " ".join(config.get_name().split()[1:])
+    if not config.has_section(stepper_name):
+        raise config.error(
+            "Could not find config section '[%s]' required by tmc driver"
+            % (stepper_name,))
     stepper_config = ms_config = config.getsection(stepper_name)
     if (stepper_config.get('microsteps', None, note_valid=False) is None
         and config.get('microsteps', None, note_valid=False) is not None):
@@ -520,8 +547,9 @@ def TMCStealthchopHelper(config, mcu_tmc, tmc_freq):
     velocity = config.getfloat('stealthchop_threshold', 0., minval=0.)
     if velocity:
         stepper_name = " ".join(config.get_name().split()[1:])
-        stepper_config = config.getsection(stepper_name)
-        step_dist = stepper.parse_step_distance(stepper_config)
+        sconfig = config.getsection(stepper_name)
+        rotation_dist, steps_per_rotation = stepper.parse_step_distance(sconfig)
+        step_dist = rotation_dist / steps_per_rotation
         step_dist_256 = step_dist / (1 << fields.get_field("mres"))
         threshold = int(tmc_freq * step_dist_256 / velocity + .5)
         fields.set_field("tpwmthrs", max(0, min(0xfffff, threshold)))
